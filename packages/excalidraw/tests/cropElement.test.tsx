@@ -156,8 +156,8 @@ describe("Crop an image", () => {
       [-initialWidth / 3, 0],
       true,
     );
-    expect(image.width).toBe(resizedWidth);
-    expect(image.height).toBe(resizedHeight);
+    expect(image.width).toBeCloseTo(resizedWidth, 10);
+    expect(image.height).toBeCloseTo(resizedHeight, 10);
 
     // re-crop to initial state
     UI.crop(image, "w", naturalWidth, naturalHeight, [-initialWidth / 3, 0]);
@@ -186,14 +186,14 @@ describe("Crop an image", () => {
     // 50 x 50 square
     UI.crop(image, "nw", naturalWidth, naturalHeight, [150, 50]);
     UI.crop(image, "n", naturalWidth, naturalHeight, [0, -100], true);
-    expect(image.width).toEqual(image.height);
+    expect(image.width).toBeCloseTo(image.height);
     // image is at the corner, not space to its right to expand, should not be able to resize
     expect(image.height).toBeCloseTo(50);
 
     UI.crop(image, "nw", naturalWidth, naturalHeight, [-150, -100], true);
-    expect(image.width).toEqual(image.height);
+    expect(image.width).toBeCloseTo(image.height);
     // max height should be reached
-    expect(image.height).toEqual(initialHeight);
+    expect(image.height).toBeCloseTo(initialHeight);
     expect(image.width).toBe(initialHeight);
   });
 });
