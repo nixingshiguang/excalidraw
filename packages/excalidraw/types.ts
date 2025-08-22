@@ -5,11 +5,11 @@ import type {
   MIME_TYPES,
 } from "@excalidraw/common";
 
-import type { SuggestedBinding } from "@excalidraw/element/binding";
+import type { SuggestedBinding } from "@excalidraw/element";
 
-import type { LinearElementEditor } from "@excalidraw/element/linearElementEditor";
+import type { LinearElementEditor } from "@excalidraw/element";
 
-import type { MaybeTransformHandleType } from "@excalidraw/element/transformHandles";
+import type { MaybeTransformHandleType } from "@excalidraw/element";
 
 import type {
   PointerType,
@@ -24,7 +24,6 @@ import type {
   ChartType,
   FontFamilyValues,
   FileId,
-  ExcalidrawImageElement,
   Theme,
   StrokeRoundness,
   ExcalidrawEmbeddableElement,
@@ -43,6 +42,12 @@ import type {
   MakeBrand,
 } from "@excalidraw/common/utility-types";
 
+import type {
+  CaptureUpdateActionType,
+  DurableIncrement,
+  EphemeralIncrement,
+} from "@excalidraw/element";
+
 import type { Action } from "./actions/types";
 import type { Spreadsheet } from "./charts";
 import type { ClipboardData } from "./clipboard";
@@ -51,7 +56,6 @@ import type Library from "./data/library";
 import type { FileSystemHandle } from "./data/filesystem";
 import type { ContextMenuItems } from "./components/ContextMenu";
 import type { SnapLine } from "./snapping";
-import type { CaptureUpdateActionType } from "./store";
 import type { ImportedDataState } from "./data/types";
 
 import type { Language } from "./i18n";
@@ -186,7 +190,6 @@ type _CommonCanvasAppState = {
   offsetLeft: AppState["offsetLeft"];
   offsetTop: AppState["offsetTop"];
   theme: AppState["theme"];
-  pendingImageElementId: AppState["pendingImageElementId"];
 };
 
 export type StaticCanvasAppState = Readonly<
@@ -210,7 +213,6 @@ export type InteractiveCanvasAppState = Readonly<
   _CommonCanvasAppState & {
     // renderInteractiveScene
     activeEmbeddable: AppState["activeEmbeddable"];
-    editingLinearElement: AppState["editingLinearElement"];
     selectionElement: AppState["selectionElement"];
     selectedGroupIds: AppState["selectedGroupIds"];
     selectedLinearElement: AppState["selectedLinearElement"];
@@ -230,6 +232,7 @@ export type InteractiveCanvasAppState = Readonly<
     croppingElementId: AppState["croppingElementId"];
     // Search matches
     searchMatches: AppState["searchMatches"];
+    activeLockedId: AppState["activeLockedId"];
   }
 >;
 
@@ -245,11 +248,13 @@ export type ObservedElementsAppState = {
   editingGroupId: AppState["editingGroupId"];
   selectedElementIds: AppState["selectedElementIds"];
   selectedGroupIds: AppState["selectedGroupIds"];
-  // Avoiding storing whole instance, as it could lead into state incosistencies, empty undos/redos and etc.
-  editingLinearElementId: LinearElementEditor["elementId"] | null;
-  // Right now it's coupled to `editingLinearElement`, ideally it should not be really needed as we already have selectedElementIds & editingLinearElementId
-  selectedLinearElementId: LinearElementEditor["elementId"] | null;
+  selectedLinearElement: {
+    elementId: LinearElementEditor["elementId"];
+    isEditing: boolean;
+  } | null;
   croppingElementId: AppState["croppingElementId"];
+  lockedMultiSelections: AppState["lockedMultiSelections"];
+  activeLockedId: AppState["activeLockedId"];
 };
 
 export interface AppState {
@@ -301,7 +306,6 @@ export interface AppState {
    * set when a new text is created or when an existing text is being edited
    */
   editingTextElement: NonDeletedExcalidrawElement | null;
-  editingLinearElement: LinearElementEditor | null;
   activeTool: {
     /**
      * indicates a previous tool we should revert back to if we deselect the
@@ -408,8 +412,6 @@ export interface AppState {
         shown: true;
         data: Spreadsheet;
       };
-  /** imageElement waiting to be placed on canvas */
-  pendingImageElementId: ExcalidrawImageElement["id"] | null;
   showHyperlinkPopup: false | "info" | "editor";
   selectedLinearElement: LinearElementEditor | null;
   snapLines: readonly SnapLine[];
@@ -427,10 +429,22 @@ export interface AppState {
   isCropping: boolean;
   croppingElementId: ExcalidrawElement["id"] | null;
 
-  searchMatches: readonly SearchMatch[];
+  /** null if no search matches found / search closed */
+  searchMatches: Readonly<{
+    focusedId: ExcalidrawElement["id"] | null;
+    matches: readonly SearchMatch[];
+  }> | null;
+
+  /** the locked element/group that's active and shows unlock popup */
+  activeLockedId: string | null;
+  // when locking multiple units of elements together, we assign a temporary
+  // groupId to them so we can unlock them together;
+  // as elements are unlocked, we remove the groupId from the elements
+  // and also remove groupId from this map
+  lockedMultiSelections: { [groupId: string]: true };
 }
 
-type SearchMatch = {
+export type SearchMatch = {
   id: string;
   focus: boolean;
   matchedLines: {
@@ -438,6 +452,7 @@ type SearchMatch = {
     offsetY: number;
     width: number;
     height: number;
+    showOnCanvas: boolean;
   }[];
 };
 
@@ -518,6 +533,7 @@ export interface ExcalidrawProps {
     appState: AppState,
     files: BinaryFiles,
   ) => void;
+  onIncrement?: (event: DurableIncrement | EphemeralIncrement) => void;
   initialData?:
     | (() => MaybePromise<ExcalidrawInitialDataState | null>)
     | MaybePromise<ExcalidrawInitialDataState | null>;
@@ -601,6 +617,7 @@ export interface ExcalidrawProps {
   ) => JSX.Element | null;
   aiEnabled?: boolean;
   showDeprecatedFonts?: boolean;
+  renderScrollbars?: boolean;
 }
 
 export type SceneData = {
@@ -713,6 +730,9 @@ export type AppClassProperties = {
   excalidrawContainerValue: App["excalidrawContainerValue"];
 
   onPointerUpEmitter: App["onPointerUpEmitter"];
+  updateEditorAtom: App["updateEditorAtom"];
+
+  defaultSelectionTool: "selection" | "lasso";
 };
 
 export type PointerDownState = Readonly<{
@@ -724,7 +744,8 @@ export type PointerDownState = Readonly<{
   scrollbars: ReturnType<typeof isOverScrollBars>;
   // The previous pointer position
   lastCoords: { x: number; y: number };
-  // map of original elements data
+  // original element frozen snapshots so we can access the original
+  // element attribute values at time of pointerdown
   originalElements: Map<string, NonDeleted<ExcalidrawElement>>;
   resize: {
     // Handle when resizing, might change during the pointer interaction
@@ -758,6 +779,13 @@ export type PointerDownState = Readonly<{
     hasOccurred: boolean;
     // Might change during the pointer interaction
     offset: { x: number; y: number } | null;
+    // by default same as PointerDownState.origin. On alt-duplication, reset
+    // to current pointer position at time of duplication.
+    origin: { x: number; y: number };
+    // Whether to block drag after lasso selection
+    // this is meant to be used to block dragging after lasso selection on PCs
+    // until the next pointer down
+    blockDragging: boolean;
   };
   // We need to have these in the state so that we can unsubscribe them
   eventListeners: {
@@ -779,11 +807,16 @@ export type UnsubscribeCallback = () => void;
 
 export interface ExcalidrawImperativeAPI {
   updateScene: InstanceType<typeof App>["updateScene"];
+  applyDeltas: InstanceType<typeof App>["applyDeltas"];
+  mutateElement: InstanceType<typeof App>["mutateElement"];
   updateLibrary: InstanceType<typeof Library>["updateLibrary"];
   resetScene: InstanceType<typeof App>["resetScene"];
   getSceneElementsIncludingDeleted: InstanceType<
     typeof App
   >["getSceneElementsIncludingDeleted"];
+  getSceneElementsMapIncludingDeleted: InstanceType<
+    typeof App
+  >["getSceneElementsMapIncludingDeleted"];
   history: {
     clear: InstanceType<typeof App>["resetHistory"];
   };
@@ -813,6 +846,9 @@ export interface ExcalidrawImperativeAPI {
       appState: AppState,
       files: BinaryFiles,
     ) => void,
+  ) => UnsubscribeCallback;
+  onIncrement: (
+    callback: (event: DurableIncrement | EphemeralIncrement) => void,
   ) => UnsubscribeCallback;
   onPointerDown: (
     callback: (

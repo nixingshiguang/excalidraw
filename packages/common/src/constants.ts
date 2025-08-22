@@ -10,6 +10,7 @@ export const isDarwin = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 export const isWindows = /^Win/.test(navigator.platform);
 export const isAndroid = /\b(android)\b/i.test(navigator.userAgent);
 export const isFirefox =
+  typeof window !== "undefined" &&
   "netscape" in window &&
   navigator.userAgent.indexOf("rv:") > 1 &&
   navigator.userAgent.indexOf("Gecko") > 1;
@@ -17,12 +18,21 @@ export const isChrome = navigator.userAgent.indexOf("Chrome") !== -1;
 export const isSafari =
   !isChrome && navigator.userAgent.indexOf("Safari") !== -1;
 export const isIOS =
-  /iPad|iPhone/.test(navigator.platform) ||
+  /iPad|iPhone/i.test(navigator.platform) ||
   // iPadOS 13+
   (navigator.userAgent.includes("Mac") && "ontouchend" in document);
 // keeping function so it can be mocked in test
 export const isBrave = () =>
   (navigator as any).brave?.isBrave?.name === "isBrave";
+
+export const isMobile =
+  isIOS ||
+  /android|webos|ipod|blackberry|iemobile|opera mini/i.test(
+    navigator.userAgent.toLowerCase(),
+  ) ||
+  /android|ios|ipod|blackberry|windows phone/i.test(
+    navigator.platform.toLowerCase(),
+  );
 
 export const supportsResizeObserver =
   typeof window !== "undefined" && "ResizeObserver" in window;
@@ -35,6 +45,7 @@ export const APP_NAME = "Excalidraw";
 // (happens a lot with fast clicks with the text tool)
 export const TEXT_AUTOWRAP_THRESHOLD = 36; // px
 export const DRAGGING_THRESHOLD = 10; // px
+export const MINIMUM_ARROW_SIZE = 20; // px
 export const LINE_CONFIRM_THRESHOLD = 8; // px
 export const ELEMENT_SHIFT_TRANSLATE_AMOUNT = 5;
 export const ELEMENT_TRANSLATE_AMOUNT = 1;
@@ -119,6 +130,7 @@ export const CLASSES = {
   SHAPE_ACTIONS_MENU: "App-menu__left",
   ZOOM_ACTIONS: "zoom-actions",
   SEARCH_MENU_INPUT_WRAPPER: "layer-ui__search-inputWrapper",
+  CONVERT_ELEMENT_TYPE_POPUP: "ConvertElementTypePopup",
 };
 
 export const CJK_HAND_DRAWN_FALLBACK_FONT = "Xiaolai";
@@ -142,21 +154,52 @@ export const FONT_FAMILY = {
   "Lilita One": 7,
   "Comic Shanns": 8,
   "Liberation Sans": 9,
+  Assistant: 10,
+};
+
+// Segoe UI Emoji fails to properly fallback for some glyphs: ∞, ∫, ≠
+// so we need to have generic font fallback before it
+export const SANS_SERIF_GENERIC_FONT = "sans-serif";
+export const MONOSPACE_GENERIC_FONT = "monospace";
+
+export const FONT_FAMILY_GENERIC_FALLBACKS = {
+  [SANS_SERIF_GENERIC_FONT]: 998,
+  [MONOSPACE_GENERIC_FONT]: 999,
 };
 
 export const FONT_FAMILY_FALLBACKS = {
   [CJK_HAND_DRAWN_FALLBACK_FONT]: 100,
+  ...FONT_FAMILY_GENERIC_FALLBACKS,
   [WINDOWS_EMOJI_FALLBACK_FONT]: 1000,
 };
+
+export function getGenericFontFamilyFallback(
+  fontFamily: number,
+): keyof typeof FONT_FAMILY_GENERIC_FALLBACKS {
+  switch (fontFamily) {
+    case FONT_FAMILY.Cascadia:
+    case FONT_FAMILY["Comic Shanns"]:
+      return MONOSPACE_GENERIC_FONT;
+
+    default:
+      return SANS_SERIF_GENERIC_FONT;
+  }
+}
 
 export const getFontFamilyFallbacks = (
   fontFamily: number,
 ): Array<keyof typeof FONT_FAMILY_FALLBACKS> => {
+  const genericFallbackFont = getGenericFontFamilyFallback(fontFamily);
+
   switch (fontFamily) {
     case FONT_FAMILY.Excalifont:
-      return [CJK_HAND_DRAWN_FALLBACK_FONT, WINDOWS_EMOJI_FALLBACK_FONT];
+      return [
+        CJK_HAND_DRAWN_FALLBACK_FONT,
+        genericFallbackFont,
+        WINDOWS_EMOJI_FALLBACK_FONT,
+      ];
     default:
-      return [WINDOWS_EMOJI_FALLBACK_FONT];
+      return [genericFallbackFont, WINDOWS_EMOJI_FALLBACK_FONT];
   }
 };
 
@@ -253,7 +296,7 @@ export const EXPORT_DATA_TYPES = {
   excalidrawClipboardWithAPI: "excalidraw-api/clipboard",
 } as const;
 
-export const EXPORT_SOURCE =
+export const getExportSource = () =>
   window.EXCALIDRAW_EXPORT_SOURCE || window.location.origin;
 
 // time in milliseconds
@@ -474,3 +517,10 @@ export enum UserIdleState {
   AWAY = "away",
   IDLE = "idle",
 }
+
+/**
+ * distance at which we merge points instead of adding a new merge-point
+ * when converting a line to a polygon (merge currently means overlaping
+ * the start and end points)
+ */
+export const LINE_POLYGON_POINT_MERGE_DISTANCE = 20;

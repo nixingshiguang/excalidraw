@@ -23,6 +23,7 @@ polyfill();
 const ExcalidrawBase = (props: ExcalidrawProps) => {
   const {
     onChange,
+    onIncrement,
     initialData,
     excalidrawAPI,
     isCollaborating = false,
@@ -53,6 +54,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     renderEmbeddable,
     aiEnabled,
     showDeprecatedFonts,
+    renderScrollbars,
   } = props;
 
   const canvasActions = props.UIOptions?.canvasActions;
@@ -113,6 +115,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
       <InitializeApp langCode={langCode} theme={theme}>
         <App
           onChange={onChange}
+          onIncrement={onIncrement}
           initialData={initialData}
           excalidrawAPI={excalidrawAPI}
           isCollaborating={isCollaborating}
@@ -143,6 +146,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           renderEmbeddable={renderEmbeddable}
           aiEnabled={aiEnabled !== false}
           showDeprecatedFonts={showDeprecatedFonts}
+          renderScrollbars={renderScrollbars}
         >
           {children}
         </App>
@@ -218,13 +222,14 @@ export {
   getNonDeletedElements,
 } from "@excalidraw/element";
 
-export { getTextFromElements } from "@excalidraw/element/textElement";
-export { isInvisiblySmallElement } from "@excalidraw/element/sizeHelpers";
+export { getTextFromElements } from "@excalidraw/element";
+export { isInvisiblySmallElement } from "@excalidraw/element";
 
 export { defaultLang, useI18n, languages } from "./i18n";
 export {
   restore,
   restoreAppState,
+  restoreElement,
   restoreElements,
   restoreLibraryItems,
 } from "./data/restore";
@@ -244,9 +249,9 @@ export {
   loadSceneOrLibraryFromBlob,
   loadLibraryFromBlob,
 } from "./data/blob";
-export { getFreeDrawSvgPath } from "@excalidraw/element/renderElement";
+export { getFreeDrawSvgPath } from "@excalidraw/element";
 export { mergeLibraryItems, getLibraryItemsHash } from "./data/library";
-export { isLinearElement } from "@excalidraw/element/typeChecks";
+export { isLinearElement } from "@excalidraw/element";
 
 export {
   FONT_FAMILY,
@@ -262,9 +267,9 @@ export {
   mutateElement,
   newElementWith,
   bumpVersion,
-} from "@excalidraw/element/mutateElement";
+} from "@excalidraw/element";
 
-export { CaptureUpdateAction } from "./store";
+export { CaptureUpdateAction } from "@excalidraw/element";
 
 export { parseLibraryTokensFromUrl, useHandleLibrary } from "./data/library";
 
@@ -277,6 +282,7 @@ export { Sidebar } from "./components/Sidebar/Sidebar";
 export { Button } from "./components/Button";
 export { Footer };
 export { MainMenu };
+export { Ellipsify } from "./components/Ellipsify";
 export { useDevice } from "./components/App";
 export { WelcomeScreen };
 export { LiveCollaborationTrigger };
@@ -288,10 +294,7 @@ export { TTDDialogTrigger } from "./components/TTDDialog/TTDDialogTrigger";
 
 export { zoomToFitBounds } from "./actions/actionCanvas";
 export { convertToExcalidrawElements } from "./data/transform";
-export {
-  getCommonBounds,
-  getVisibleSceneBounds,
-} from "@excalidraw/element/bounds";
+export { getCommonBounds, getVisibleSceneBounds } from "@excalidraw/element";
 
 export {
   elementsOverlappingBBox,
@@ -301,6 +304,6 @@ export {
 
 export { DiagramToCodePlugin } from "./components/DiagramToCodePlugin/DiagramToCodePlugin";
 export { getDataURL } from "./data/blob";
-export { isElementLink } from "@excalidraw/element/elementLink";
+export { isElementLink } from "@excalidraw/element";
 
-export { setCustomTextMetricsProvider } from "@excalidraw/element/textMeasurements";
+export { setCustomTextMetricsProvider } from "@excalidraw/element";

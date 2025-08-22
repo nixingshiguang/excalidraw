@@ -14,8 +14,10 @@ import {
 } from "@excalidraw/common";
 
 import { getNonDeletedElements } from "@excalidraw/element";
-import { newElementWith } from "@excalidraw/element/mutateElement";
-import { getCommonBounds, type SceneBounds } from "@excalidraw/element/bounds";
+import { newElementWith } from "@excalidraw/element";
+import { getCommonBounds, type SceneBounds } from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
@@ -44,7 +46,6 @@ import { t } from "../i18n";
 import { getNormalizedZoom } from "../scene";
 import { centerScrollOn } from "../scene/scroll";
 import { getStateForZoom } from "../scene/zoom";
-import { CaptureUpdateAction } from "../store";
 
 import { register } from "./register";
 
@@ -120,7 +121,7 @@ export const actionClearCanvas = register({
         pasteDialog: appState.pasteDialog,
         activeTool:
           appState.activeTool.type === "image"
-            ? { ...appState.activeTool, type: "selection" }
+            ? { ...appState.activeTool, type: app.defaultSelectionTool }
             : appState.activeTool,
       },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
@@ -493,13 +494,13 @@ export const actionToggleEraserTool = register({
   name: "toggleEraserTool",
   label: "toolBar.eraser",
   trackEvent: { category: "toolbar" },
-  perform: (elements, appState) => {
+  perform: (elements, appState, _, app) => {
     let activeTool: AppState["activeTool"];
 
     if (isEraserActive(appState)) {
       activeTool = updateActiveTool(appState, {
         ...(appState.activeTool.lastActiveTool || {
-          type: "selection",
+          type: app.defaultSelectionTool,
         }),
         lastActiveToolBeforeEraser: null,
       });
@@ -529,6 +530,9 @@ export const actionToggleLassoTool = register({
   label: "toolBar.lasso",
   icon: LassoIcon,
   trackEvent: { category: "toolbar" },
+  predicate: (elements, appState, props, app) => {
+    return app.defaultSelectionTool !== "lasso";
+  },
   perform: (elements, appState, _, app) => {
     let activeTool: AppState["activeTool"];
 
